@@ -13,11 +13,11 @@ Usage
 -----
 
 ```javascript
-var fs    = require('fs');
-var mca   = require('mca-js');
+var fs   = require('fs');
+var mca  = require('mca-js');
 
 var file = fs.readFileSync('r.0.0.mca');
-var tag = mca.getChunk(file, 0, 0);
+var tag  = mca.getChunk(file, 0, 0);
 
 console.log(JSON.stringify(tag.payload));
 ```
