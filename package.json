@@ -1,0 +1,27 @@
+{
+	"name": "mca-js",
+	"version": "0.0.0",
+	"description": "An MCA parser written in JavaScript for Node.js.",
+	"main": "mca-js.js",
+	"repository":
+	{
+		"type": "git",
+		"url": "git://github.com/thejonwithnoh/mca-js.git"
+	},
+	"keywords":
+	[
+		"mca",
+		"minecraft"
+	],
+	"author": "Jonathan Faulch",
+	"license": "MIT",
+	"dependencies":
+	{
+		"nbt-js": "0.0.x"
+	},
+	"bugs":
+	{
+		"url": "https://github.com/thejonwithnoh/mca-js/issues"
+	},
+	"homepage": "https://github.com/thejonwithnoh/mca-js#readme"
+}
