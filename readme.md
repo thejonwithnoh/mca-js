@@ -15,9 +15,11 @@ Usage
 ```javascript
 var fs   = require('fs');
 var mca  = require('mca-js');
+var nbt  = require('nbt-js');
 
 var file = fs.readFileSync('r.0.0.mca');
-var tag  = mca.getChunk(file, 0, 0);
+var data = new mca(file).getData(0, 0);
+var tag  = nbt.read(data);
 
 console.log(JSON.stringify(tag.payload));
 ```

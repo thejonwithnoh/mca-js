@@ -1,7 +1,9 @@
-var nbt = require('nbt-js');
 var zlib = require('zlib');
 
-var mca = exports;
+var mca = module.exports = function(data)
+{
+	this.data = data;
+};
 
 mca.config =
 {
@@ -70,54 +72,53 @@ mca.compressionTypes =
 	}
 })();
 
-var getChunkLocationLocation = function(x, z)
+var getDataLocationLocation = function(x, z)
 {
 	return mca.config.chunk.sector.detailsSize * ((x & mca.config.region.linearChunk.countMask) | ((z & mca.config.region.linearChunk.countMask) << mca.config.region.linearChunk.countPower));
 };
 
-var getChunkSizeLocation = function(x, z)
+var getSectorCountLocation = function(x, z)
 {
-	return getChunkLocationLocation(x, z) + mca.config.chunk.sector.offsetSize;
+	return getDataLocationLocation(x, z) + mca.config.chunk.sector.offsetSize;
 };
 
-var getChunkTimestampLocation = function(x, z)
+var getTimestampLocation = function(x, z)
 {
-	return getChunkLocationLocation(x, z) + mca.config.sector.size;
+	return getDataLocationLocation(x, z) + mca.config.sector.size;
 };
 
-mca.getChunkLocation = function(data, x, z)
+mca.prototype =
 {
-	return data.readUIntBE(getChunkLocationLocation(x, z), mca.config.chunk.sector.offsetSize) << mca.config.sector.sizePower;
-};
-
-mca.getChunkSize = function(data, x, z)
-{
-	return data.readUIntBE(getChunkSizeLocation(x, z), mca.config.chunk.sector.countSize) << mca.config.sector.sizePower;
-};
-
-mca.getChunkTimestamp = function(data, x, z)
-{
-	return data.readUIntBE(getChunkTimestampLocation(x, z), mca.config.chunk.timestampSize);
-};
-
-mca.getChunkExactSize = function(data, x, z)
-{
-	return data.readUIntBE(mca.getChunkLocation(data, x, z), mca.config.chunk.data.byteCountSize) - mca.config.chunk.data.compressionTypeSize;
-};
-
-mca.getChunkCompressionType = function(data, x, z)
-{
-	return mca.compressionTypes[data.readUIntBE(mca.getChunkLocation(data, x, z) + mca.config.chunk.data.byteCountSize, mca.config.chunk.data.compressionTypeSize)];
-};
-
-mca.getChunk = function(data, x, z)
-{
-	var dataStart = mca.getChunkLocation(data, x, z);
-	if (dataStart)
+	constructor: mca,
+	getDataLocation: function(x, z)
 	{
-		var payloadStart = dataStart + mca.config.chunk.data.detailsSize;
-		var payloadEnd = mca.getChunkExactSize(data, x, z) + payloadStart;
-		var payload = data.slice(payloadStart, payloadEnd);
-		return nbt.read(mca.getChunkCompressionType(data, x, z).decompressSync(payload));
+		return this.data.readUIntBE(getDataLocationLocation(x, z), mca.config.chunk.sector.offsetSize) << mca.config.sector.sizePower;
+	},
+	getSectorCount: function(x, z)
+	{
+		return this.data.readUIntBE(getSectorCountLocation(x, z), mca.config.chunk.sector.countSize);
+	},
+	getTimestamp: function(x, z)
+	{
+		return this.data.readUIntBE(getTimestampLocation(x, z), mca.config.chunk.timestampSize);
+	},
+	getDataSize: function(x, z)
+	{
+		return this.data.readUIntBE(this.getDataLocation(x, z), mca.config.chunk.data.byteCountSize) - mca.config.chunk.data.compressionTypeSize;
+	},
+	getCompressionType: function(x, z)
+	{
+		return mca.compressionTypes[this.data.readUIntBE(this.getDataLocation(x, z) + mca.config.chunk.data.byteCountSize, mca.config.chunk.data.compressionTypeSize)];
+	},
+	getData: function(x, z)
+	{
+		var dataStart = this.getDataLocation(x, z);
+		if (dataStart)
+		{
+			var payloadStart = dataStart + mca.config.chunk.data.detailsSize;
+			var payloadEnd = this.getDataSize(x, z) + payloadStart;
+			var payload = this.data.slice(payloadStart, payloadEnd);
+			return this.getCompressionType(x, z).decompressSync(payload);
+		}
 	}
 };

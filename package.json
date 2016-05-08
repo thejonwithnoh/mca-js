@@ -15,10 +15,6 @@
 	],
 	"author": "Jonathan Faulch",
 	"license": "MIT",
-	"dependencies":
-	{
-		"nbt-js": "0.0.x"
-	},
 	"bugs":
 	{
 		"url": "https://github.com/thejonwithnoh/mca-js/issues"
