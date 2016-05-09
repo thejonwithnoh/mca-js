@@ -1,124 +1,151 @@
 var zlib = require('zlib');
 
-var mca = module.exports = function(data)
+var Mca = module.exports = function(data, layout)
 {
 	this.data = data;
+	this.layout = layout || Mca.defaultLayout;
 };
 
-mca.config =
+Mca.Layout = function(layout)
 {
-	chunk:
+	this.sectorOffsetSize    = 3;
+	this.sectorCountSize     = 1;
+	this.timestampSize       = 4;
+	this.dataSizeSize        = 4;
+	this.compressionTypeSize = 1;
+	this.dimensionSizePower  = 5;
+	this.dimensionCount      = 2;
+	this.sectorSizePower     = 12;
+	
+	for (var propertyName in layout)
 	{
-		sector:
+		if (layout.hasOwnProperty(propertyName))
 		{
-			offsetSize: 3,
-			countSize: 1,
-			get detailsSize () { return this.offsetSize + this.countSize; }
-		},
-		timestampSize: 4,
-		data:
-		{
-			byteCountSize: 4,
-			compressionTypeSize: 1,
-			get detailsSize () { return this.byteCountSize + this.compressionTypeSize; }
+			this[propertyName] = layout[propertyName];
 		}
-	},
-	region:
-	{
-		linearChunk:
-		{
-			countPower: 5,
-			get count () { return 1 << this.countPower; },
-			get countMask () { return this.count - 1; }
-		}
-	},
-	sector:
-	{
-		sizePower: 12,
-		get size () { return 1 << this.sizePower; }
 	}
 };
 
-mca.compressionTypes =
+Mca.Layout.prototype =
+{
+	constructor: Mca.Layout,
+	getIndex: function()
+	{
+		var index = 0;
+		for (var dimension = 0; dimension < this.dimensionCount; dimension++)
+		{
+			index |= (arguments[dimension] & this.dimensionSizeMask) << dimension * this.dimensionSizePower;
+		}
+		return index;
+	},
+	getSectorOffsetOffset: function()
+	{
+		return this.getIndex.apply(this, arguments) * this.sectorDetailsSize;
+	},
+	getSectorCountOffset: function()
+	{
+		return this.getSectorOffsetOffset.apply(this, arguments) + this.sectorOffsetSize;
+	},
+	getTimestampOffset: function()
+	{
+		return this.getIndex.apply(this, arguments) * this.timestampSize + this.headerSize;
+	}
+};
+
+Object.defineProperties(Mca.Layout.prototype,
+{
+	sectorDetailsSize: { get: function() { return this.sectorOffsetSize + this.sectorCountSize; } },
+	dataHeaderSize   : { get: function() { return this.dataSizeSize + this.compressionTypeSize; } },
+	dimensionSize    : { get: function() { return 1 << this.dimensionSizePower;                 } },
+	dimensionSizeMask: { get: function() { return this.dimensionSize - 1;                       } },
+	indexCount       : { get: function() { return this.dimensionSize * this.dimensionCount;     } },
+	headerSize       : { get: function() { return this.sectorDetailsSize * this.indexCount;     } },
+	sectorSize       : { get: function() { return 1 << this.sectorSizePower;                    } }
+});
+
+Mca.defaultLayout = new Mca.Layout();
+
+Mca.compressionTypes =
 {
 	gzip:
 	{
-		value: 1,
-		compress: zlib.gzip,
-		compressSync: zlib.gzipSync,
-		decompress: zlib.gunzip,
+		value         : 1,
+		compress      : zlib.gzip,
+		compressSync  : zlib.gzipSync,
+		decompress    : zlib.gunzip,
 		decompressSync: zlib.gunzipSync
 	},
 	zlib:
 	{
-		value: 2,
-		compress: zlib.deflate,
-		compressSync: zlib.deflateSync,
-		decompress: zlib.inflate,
+		value         : 2,
+		compress      : zlib.deflate,
+		compressSync  : zlib.deflateSync,
+		decompress    : zlib.inflate,
 		decompressSync: zlib.inflateSync
 	}
 };
 
 (function()
 {
-	for (var compressionTypeName in mca.compressionTypes)
+	for (var compressionTypeName in Mca.compressionTypes)
 	{
-		if (mca.compressionTypes.hasOwnProperty(compressionTypeName))
+		if (Mca.compressionTypes.hasOwnProperty(compressionTypeName))
 		{
-			var compressionType = mca.compressionTypes[compressionTypeName];
+			var compressionType = Mca.compressionTypes[compressionTypeName];
 			compressionType.name = compressionTypeName;
-			mca.compressionTypes[compressionType.value] = compressionType;
+			Mca.compressionTypes[compressionType.value] = compressionType;
 		}
 	}
 })();
 
-var getDataLocationLocation = function(x, z)
+Mca.prototype =
 {
-	return mca.config.chunk.sector.detailsSize * ((x & mca.config.region.linearChunk.countMask) | ((z & mca.config.region.linearChunk.countMask) << mca.config.region.linearChunk.countPower));
-};
-
-var getSectorCountLocation = function(x, z)
-{
-	return getDataLocationLocation(x, z) + mca.config.chunk.sector.offsetSize;
-};
-
-var getTimestampLocation = function(x, z)
-{
-	return getDataLocationLocation(x, z) + mca.config.sector.size;
-};
-
-mca.prototype =
-{
-	constructor: mca,
-	getDataLocation: function(x, z)
+	constructor: Mca,
+	getSectorOffset: function()
 	{
-		return this.data.readUIntBE(getDataLocationLocation(x, z), mca.config.chunk.sector.offsetSize) << mca.config.sector.sizePower;
+		return this.data.readUIntBE(this.layout.getSectorOffsetOffset.apply(this.layout, arguments), this.layout.sectorOffsetSize);
 	},
-	getSectorCount: function(x, z)
+	getDataOffset: function()
 	{
-		return this.data.readUIntBE(getSectorCountLocation(x, z), mca.config.chunk.sector.countSize);
+		return this.getSectorOffset.apply(this, arguments) << this.layout.sectorSizePower;
 	},
-	getTimestamp: function(x, z)
+	getSectorCount: function()
 	{
-		return this.data.readUIntBE(getTimestampLocation(x, z), mca.config.chunk.timestampSize);
+		return this.data.readUIntBE(this.layout.getSectorCountOffset.apply(this.layout, arguments), this.layout.sectorCountSize);
 	},
-	getDataSize: function(x, z)
+	getTimestamp: function()
 	{
-		return this.data.readUIntBE(this.getDataLocation(x, z), mca.config.chunk.data.byteCountSize) - mca.config.chunk.data.compressionTypeSize;
+		return this.data.readUIntBE(this.layout.getTimestampOffset.apply(this.layout, arguments), this.layout.timestampSize);
 	},
-	getCompressionType: function(x, z)
+	getDataSize: function()
 	{
-		return mca.compressionTypes[this.data.readUIntBE(this.getDataLocation(x, z) + mca.config.chunk.data.byteCountSize, mca.config.chunk.data.compressionTypeSize)];
+		return this.data.readUIntBE(this.getDataOffset.apply(this, arguments), this.layout.dataSizeSize) - this.layout.compressionTypeSize;
 	},
-	getData: function(x, z)
+	getCompressionType: function()
 	{
-		var dataStart = this.getDataLocation(x, z);
+		return Mca.compressionTypes[this.data.readUIntBE(this.getDataOffset.apply(this, arguments) + this.layout.dataSizeSize, this.layout.compressionTypeSize)];
+	},
+	getData: function()
+	{
+		var dataStart = this.getDataOffset.apply(this, arguments);
 		if (dataStart)
 		{
-			var payloadStart = dataStart + mca.config.chunk.data.detailsSize;
-			var payloadEnd = this.getDataSize(x, z) + payloadStart;
+			var payloadStart = dataStart + this.layout.dataHeaderSize;
+			var payloadEnd = this.getDataSize.apply(this, arguments) + payloadStart;
 			var payload = this.data.slice(payloadStart, payloadEnd);
-			return this.getCompressionType(x, z).decompressSync(payload);
+			return this.getCompressionType.apply(this, arguments).decompressSync(payload);
 		}
 	}
 };
+
+for (var propertyName in Mca.prototype)
+{
+	if(Mca.prototype.hasOwnProperty(propertyName) && propertyName !== 'constructor')
+	{
+		Mca[propertyName] = function(data)
+		{
+			var instance = new Mca(data);
+			return instance[propertyName].apply(instance, Array.prototype.slice.call(arguments, 1));
+		};
+	}
+}

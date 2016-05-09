@@ -18,7 +18,7 @@ var mca  = require('mca-js');
 var nbt  = require('nbt-js');
 
 var file = fs.readFileSync('r.0.0.mca');
-var data = new mca(file).getData(0, 0);
+var data = mca.getData(file, 0, 0);
 var tag  = nbt.read(data);
 
 console.log(JSON.stringify(tag.payload));
