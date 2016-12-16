@@ -138,9 +138,9 @@ Mca.prototype =
 	}
 };
 
-for (var propertyName in Mca.prototype)
+Object.getOwnPropertyNames(Mca.prototype).forEach(function(propertyName)
 {
-	if(Mca.prototype.hasOwnProperty(propertyName) && propertyName !== 'constructor')
+	if (propertyName !== 'constructor')
 	{
 		Mca[propertyName] = function(data)
 		{
@@ -148,4 +148,4 @@ for (var propertyName in Mca.prototype)
 			return instance[propertyName].apply(instance, Array.prototype.slice.call(arguments, 1));
 		};
 	}
-}
+});
